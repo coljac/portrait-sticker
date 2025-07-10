@@ -147,7 +147,22 @@
   <body>
     <div class="container">
       <h1>PDF Portrait Sticker</h1>
+      <div>
+        <p>
+          This simple application takes a character sheet and inserts an image
+          into it. It fixes some issues where the exported PDF from D&D Beyond
+          (for instance) lacks a character portrait.
 
+          It knows about a few of the <a href="https://www.dndbeyond.com/resources/1779-d-d-character-sheets#OfficialCharacterSheets">standard character sheet formats</a>. 
+          Otherwise, use the manual selection mode to draw a box with your mouse to select the area where the image should be placed.
+        </p>
+        <p>
+          <b>Note:</b> Form-fillable PDFs may not work as expected, as the image
+          may appear under a fillable form field. Consider flattening the PDF
+          first (for instance, using the "Print to PDF" option in your browser)
+          to ensure the image is added correctly.
+        </p>
+      </div>
       <div class="input-group">
         <label for="pdfFile">Select PDF file:</label>
         <input type="file" id="pdfFile" accept=".pdf" />
