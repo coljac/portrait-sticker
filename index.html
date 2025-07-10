@@ -1,0 +1,655 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>PDF Portrait Sticker</title>
+    <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <style>
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+          sans-serif;
+        max-width: 800px;
+        margin: 50px auto;
+        padding: 20px;
+        background: #f5f5f5;
+      }
+      .container {
+        background: white;
+        padding: 30px;
+        border-radius: 8px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+      }
+      h1 {
+        color: #333;
+        margin-bottom: 30px;
+        text-align: center;
+      }
+      .input-group {
+        margin-bottom: 20px;
+      }
+      label {
+        display: block;
+        margin-bottom: 8px;
+        font-weight: 500;
+        color: #555;
+      }
+      input[type="file"] {
+        width: 100%;
+        padding: 10px;
+        border: 2px dashed #ddd;
+        border-radius: 4px;
+        background: #fafafa;
+      }
+      select,
+      input[type="number"] {
+        width: 100%;
+        padding: 8px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        background: white;
+      }
+      .settings-group {
+        margin: 20px 0;
+        padding: 15px;
+        background: #f9f9f9;
+        border-radius: 4px;
+      }
+      .input-row {
+        display: flex;
+        gap: 15px;
+        margin-bottom: 15px;
+      }
+      .input-row:last-child {
+        margin-bottom: 0;
+      }
+      .input-row .input-group {
+        flex: 1;
+        margin-bottom: 0;
+      }
+      .pdf-preview {
+        margin: 20px 0;
+        padding: 15px;
+        background: #f9f9f9;
+        border-radius: 4px;
+        border: 1px solid #ddd;
+      }
+      .preview-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 15px;
+      }
+      .preview-header button {
+        padding: 6px 12px;
+        font-size: 14px;
+        width: auto;
+        margin: 0;
+      }
+      .canvas-container {
+        position: relative;
+        display: inline-block;
+        border: 1px solid #ccc;
+        background: white;
+        max-width: 100%;
+        overflow: auto;
+      }
+      #pdfCanvas {
+        display: block;
+      }
+      #selectionCanvas {
+        position: absolute;
+        top: 0;
+        left: 0;
+        pointer-events: none;
+        z-index: 2;
+      }
+      .canvas-container:hover {
+        cursor: crosshair;
+      }
+      button {
+        background: #007bff;
+        color: white;
+        border: none;
+        padding: 12px 24px;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 16px;
+        width: 100%;
+        margin-top: 20px;
+      }
+      button:hover {
+        background: #0056b3;
+      }
+      button:disabled {
+        background: #ccc;
+        cursor: not-allowed;
+      }
+      .status {
+        margin-top: 20px;
+        padding: 10px;
+        border-radius: 4px;
+        display: none;
+      }
+      .status.success {
+        background: #d4edda;
+        color: #155724;
+        border: 1px solid #c3e6cb;
+      }
+      .status.error {
+        background: #f8d7da;
+        color: #721c24;
+        border: 1px solid #f5c6cb;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>PDF Portrait Sticker</h1>
+
+      <div class="input-group">
+        <label for="pdfFile">Select PDF file:</label>
+        <input type="file" id="pdfFile" accept=".pdf" />
+      </div>
+
+      <div class="input-group">
+        <label for="imageFile">Select image file:</label>
+        <input type="file" id="imageFile" accept="image/*" />
+      </div>
+
+      <div class="input-group">
+        <label for="positionMode">Positioning mode:</label>
+        <select id="positionMode" onchange="updatePositionMode()">
+          <option value="preset">Use Preset</option>
+          <option value="manual">Manual Selection (draw box with mouse)</option>
+        </select>
+      </div>
+
+      <div id="presetControls" class="input-group">
+        <label for="sheetType">Character sheet type:</label>
+        <select id="sheetType" onchange="updatePreset()">
+          <option value="dndbeyond">Exported D&D Beyond</option>
+          <option value="charsheet3pg">CharacterSheet 3Pgs</option>
+          <option value="details">Character details</option>
+          <option value="tyrrany">Tyrrany of Dragons</option>
+        </select>
+      </div>
+
+      <div id="pdfPreview" class="pdf-preview" style="display: none">
+        <div class="preview-header">
+          <label>Click and drag to select image area:</label>
+          <button type="button" id="refreshPreview" onclick="refreshPreview()">
+            Refresh Preview
+          </button>
+        </div>
+        <div class="canvas-container">
+          <canvas id="pdfCanvas"></canvas>
+          <canvas id="selectionCanvas"></canvas>
+        </div>
+      </div>
+
+      <div class="settings-group">
+        <div class="input-row">
+          <div class="input-group">
+            <label for="pageInput">Page:</label>
+            <input type="number" id="pageInput" min="1" value="3" />
+          </div>
+          <div class="input-group">
+            <label for="xInput">X position:</label>
+            <input type="number" id="xInput" value="100" />
+          </div>
+          <div class="input-group">
+            <label for="yInput">Y position:</label>
+            <input type="number" id="yInput" value="400" />
+          </div>
+        </div>
+        <div class="input-row">
+          <div class="input-group">
+            <label for="widthInput">Width:</label>
+            <input type="number" id="widthInput" value="150" />
+          </div>
+          <div class="input-group">
+            <label for="heightInput">Height:</label>
+            <input type="number" id="heightInput" value="200" />
+          </div>
+        </div>
+      </div>
+
+      <button id="processBtn" onclick="processFiles()">Add Image to PDF</button>
+
+      <div id="status" class="status"></div>
+    </div>
+
+    <script>
+      const pdfInput = document.getElementById("pdfFile");
+      const imageInput = document.getElementById("imageFile");
+      const processBtn = document.getElementById("processBtn");
+      const statusDiv = document.getElementById("status");
+      const positionModeSelect = document.getElementById("positionMode");
+      const presetControls = document.getElementById("presetControls");
+      const pdfPreview = document.getElementById("pdfPreview");
+      const sheetTypeSelect = document.getElementById("sheetType");
+      const pageInput = document.getElementById("pageInput");
+      const xInput = document.getElementById("xInput");
+      const yInput = document.getElementById("yInput");
+      const widthInput = document.getElementById("widthInput");
+      const heightInput = document.getElementById("heightInput");
+      const pdfCanvas = document.getElementById("pdfCanvas");
+      const selectionCanvas = document.getElementById("selectionCanvas");
+
+      // PDF.js setup
+      pdfjsLib.GlobalWorkerOptions.workerSrc =
+        "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+
+      // Selection state
+      let isSelecting = false;
+      let selectionStart = null;
+      let currentPdfDoc = null;
+      let currentScale = 1;
+
+      // Preset configurations for different character sheet types
+      const PRESETS = {
+        dndbeyond: {
+          page: 3,
+          x: 100,
+          y: 400,
+          width: 150,
+          height: 200,
+        },
+        charsheet3pg: {
+          page: 2,
+          x: 34,
+          y: 446,
+          width: 165,
+          height: 215,
+        },
+        details: {
+          page: 1,
+          x: 34,
+          y: 446,
+          width: 165,
+          height: 215,
+        },
+        tyrrany: {
+          page: 2,
+          x: 42,
+          y: 450,
+          width: 153,
+          height: 208,
+        },
+      };
+
+      function showStatus(message, isError = false) {
+        statusDiv.textContent = message;
+        statusDiv.className = `status ${isError ? "error" : "success"}`;
+        statusDiv.style.display = "block";
+      }
+
+      function hideStatus() {
+        statusDiv.style.display = "none";
+      }
+
+      function updatePositionMode() {
+        const mode = positionModeSelect.value;
+        if (mode === "preset") {
+          presetControls.style.display = "block";
+          pdfPreview.style.display = "none";
+          updatePreset();
+        } else {
+          presetControls.style.display = "none";
+          pdfPreview.style.display = "block";
+          loadPdfPreview();
+        }
+      }
+
+      function updatePreset() {
+        const selectedType = sheetTypeSelect.value;
+        const preset = PRESETS[selectedType];
+
+        if (preset) {
+          pageInput.value = preset.page;
+          xInput.value = preset.x;
+          yInput.value = preset.y;
+          widthInput.value = preset.width;
+          heightInput.value = preset.height;
+        }
+      }
+
+      async function loadPdfPreview() {
+        const file = pdfInput.files[0];
+        if (!file) {
+          showStatus("Please select a PDF file first", true);
+          return;
+        }
+
+        try {
+          const arrayBuffer = await file.arrayBuffer();
+          const pdf = await pdfjsLib.getDocument(arrayBuffer).promise;
+          currentPdfDoc = pdf;
+          renderPdfPage();
+        } catch (error) {
+          showStatus("Error loading PDF preview: " + error.message, true);
+        }
+      }
+
+      async function renderPdfPage() {
+        if (!currentPdfDoc) return;
+
+        const pageNum = parseInt(pageInput.value);
+        if (pageNum < 1 || pageNum > currentPdfDoc.numPages) {
+          showStatus(`Page ${pageNum} not found in PDF`, true);
+          return;
+        }
+
+        try {
+          const page = await currentPdfDoc.getPage(pageNum);
+          const viewport = page.getViewport({ scale: 1 });
+
+          // Scale to fit container width (max 720px)
+          const maxWidth = 720;
+          currentScale = Math.min(maxWidth / viewport.width, 1);
+          const scaledViewport = page.getViewport({ scale: currentScale });
+
+          pdfCanvas.width = scaledViewport.width;
+          pdfCanvas.height = scaledViewport.height;
+          selectionCanvas.width = scaledViewport.width;
+          selectionCanvas.height = scaledViewport.height;
+
+          const renderContext = {
+            canvasContext: pdfCanvas.getContext("2d"),
+            viewport: scaledViewport,
+          };
+
+          await page.render(renderContext).promise;
+          clearSelection();
+        } catch (error) {
+          showStatus("Error rendering PDF page: " + error.message, true);
+        }
+      }
+
+      function refreshPreview() {
+        if (positionModeSelect.value === "manual") {
+          renderPdfPage();
+        }
+      }
+
+      function clearSelection() {
+        const ctx = selectionCanvas.getContext("2d");
+        ctx.clearRect(0, 0, selectionCanvas.width, selectionCanvas.height);
+      }
+
+      function drawSelection(startX, startY, endX, endY) {
+        const ctx = selectionCanvas.getContext("2d");
+        ctx.clearRect(0, 0, selectionCanvas.width, selectionCanvas.height);
+
+        const x = Math.min(startX, endX);
+        const y = Math.min(startY, endY);
+        const width = Math.abs(endX - startX);
+        const height = Math.abs(endY - startY);
+
+        // Draw selection rectangle
+        ctx.strokeStyle = "#007bff";
+        ctx.lineWidth = 2;
+        ctx.setLineDash([5, 5]);
+        ctx.strokeRect(x, y, width, height);
+
+        // Draw semi-transparent fill
+        ctx.fillStyle = "rgba(0, 123, 255, 0.1)";
+        ctx.fillRect(x, y, width, height);
+      }
+
+      function canvasToPDF(canvasX, canvasY) {
+        if (!currentPdfDoc) return { x: 0, y: 0 };
+
+        // Convert canvas coordinates to PDF coordinates
+        const pdfX = canvasX / currentScale;
+        const pdfY = (selectionCanvas.height - canvasY) / currentScale; // PDF Y is from bottom
+
+        return { x: Math.round(pdfX), y: Math.round(pdfY) };
+      }
+
+      function updateFormFromSelection(startX, startY, endX, endY) {
+        const x = Math.min(startX, endX);
+        const y = Math.min(startY, endY);
+        const width = Math.abs(endX - startX);
+        const height = Math.abs(endY - startY);
+
+        const pdfStart = canvasToPDF(x, y + height); // Bottom-left in PDF coords
+        const pdfEnd = canvasToPDF(x + width, y); // Top-right in PDF coords
+
+        xInput.value = pdfStart.x;
+        yInput.value = pdfStart.y;
+        widthInput.value = pdfEnd.x - pdfStart.x;
+        heightInput.value = pdfEnd.y - pdfStart.y;
+      }
+
+      // Mouse event handlers for selection
+      pdfCanvas.addEventListener("mousedown", (e) => {
+        if (positionModeSelect.value !== "manual") return;
+
+        const rect = pdfCanvas.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+
+        isSelecting = true;
+        selectionStart = { x, y };
+        clearSelection();
+      });
+
+      pdfCanvas.addEventListener("mousemove", (e) => {
+        if (!isSelecting || positionModeSelect.value !== "manual") return;
+
+        const rect = pdfCanvas.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+
+        drawSelection(selectionStart.x, selectionStart.y, x, y);
+      });
+
+      pdfCanvas.addEventListener("mouseup", (e) => {
+        if (!isSelecting || positionModeSelect.value !== "manual") return;
+
+        const rect = pdfCanvas.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+
+        // Only update if we have a meaningful selection
+        if (
+          Math.abs(x - selectionStart.x) > 10 &&
+          Math.abs(y - selectionStart.y) > 10
+        ) {
+          updateFormFromSelection(selectionStart.x, selectionStart.y, x, y);
+        }
+
+        isSelecting = false;
+        selectionStart = null;
+      });
+
+      // Prevent context menu on canvas
+      pdfCanvas.addEventListener("contextmenu", (e) => e.preventDefault());
+
+      function getConfig() {
+        return {
+          page: parseInt(pageInput.value) - 1, // Convert to 0-indexed
+          x: parseInt(xInput.value),
+          y: parseInt(yInput.value),
+          width: parseInt(widthInput.value),
+          height: parseInt(heightInput.value),
+        };
+      }
+
+      function calculateAspectFitDimensions(
+        imageWidth,
+        imageHeight,
+        maxWidth,
+        maxHeight
+      ) {
+        const imageAspect = imageWidth / imageHeight;
+        const boxAspect = maxWidth / maxHeight;
+
+        let newWidth, newHeight;
+
+        if (imageAspect > boxAspect) {
+          // Image is wider than box aspect ratio, fit to width
+          newWidth = maxWidth;
+          newHeight = maxWidth / imageAspect;
+        } else {
+          // Image is taller than box aspect ratio, fit to height
+          newHeight = maxHeight;
+          newWidth = maxHeight * imageAspect;
+        }
+
+        return {
+          width: newWidth,
+          height: newHeight,
+          // Center the image in the box
+          offsetX: (maxWidth - newWidth) / 2,
+          offsetY: (maxHeight - newHeight) / 2,
+        };
+      }
+
+      async function processFiles() {
+        const pdfFile = pdfInput.files[0];
+        const imageFile = imageInput.files[0];
+
+        if (!pdfFile || !imageFile) {
+          showStatus("Please select both PDF and image files", true);
+          return;
+        }
+
+        const config = getConfig();
+
+        hideStatus();
+        processBtn.disabled = true;
+        processBtn.textContent = "Processing...";
+
+        try {
+          // Read PDF file
+          const pdfArrayBuffer = await pdfFile.arrayBuffer();
+          const pdfDoc = await PDFLib.PDFDocument.load(pdfArrayBuffer);
+
+          // Check if the PDF has enough pages
+          const pageCount = pdfDoc.getPageCount();
+          if (pageCount < config.page + 1) {
+            throw new Error(
+              `PDF only has ${pageCount} pages, but trying to add image to page ${
+                config.page + 1
+              }`
+            );
+          }
+
+          // Read image file
+          const imageArrayBuffer = await imageFile.arrayBuffer();
+
+          // Embed image based on file type
+          let image;
+          const imageType = imageFile.type.toLowerCase();
+
+          if (imageType.includes("png")) {
+            image = await pdfDoc.embedPng(imageArrayBuffer);
+          } else if (imageType.includes("jpeg") || imageType.includes("jpg")) {
+            image = await pdfDoc.embedJpg(imageArrayBuffer);
+          } else {
+            throw new Error(
+              "Unsupported image format. Please use PNG or JPEG."
+            );
+          }
+
+          // Get the target page
+          const page = pdfDoc.getPage(config.page);
+
+          // Force flatten form fields to ensure image appears on top
+          try {
+            const form = pdfDoc.getForm();
+            if (form) {
+              // Get all form fields
+              const fields = form.getFields();
+              console.log(`Found ${fields.length} form fields, flattening...`);
+
+              // Flatten each field individually
+              fields.forEach((field) => {
+                try {
+                  field.defaultUpdateAppearances();
+                } catch (e) {
+                  console.log(
+                    "Could not update appearance for field:",
+                    field.getName()
+                  );
+                }
+              });
+
+              // Flatten the entire form
+              form.flatten();
+              console.log("Form flattened successfully");
+            }
+          } catch (e) {
+            console.log("Form processing failed:", e.message);
+          }
+
+          // Calculate aspect-fit dimensions
+          const imageDims = image.scale(1);
+          const aspectFit = calculateAspectFitDimensions(
+            imageDims.width,
+            imageDims.height,
+            config.width,
+            config.height
+          );
+
+          // Add image to the page - it should now appear on top of flattened form
+          page.drawImage(image, {
+            x: config.x + aspectFit.offsetX,
+            y: config.y + aspectFit.offsetY,
+            width: aspectFit.width,
+            height: aspectFit.height,
+          });
+
+          // Save the modified PDF
+          const pdfBytes = await pdfDoc.save();
+
+          // Download the result
+          const blob = new Blob([pdfBytes], { type: "application/pdf" });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = `${pdfFile.name.replace(".pdf", "")}_with_image.pdf`;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+
+          showStatus("PDF processed successfully! Download started.");
+        } catch (error) {
+          console.error("Error processing files:", error);
+          showStatus(`Error: ${error.message}`, true);
+        } finally {
+          processBtn.disabled = false;
+          processBtn.textContent = "Add Image to PDF";
+        }
+      }
+
+      // Enable/disable button based on file selection
+      function updateButtonState() {
+        const hasFiles = pdfInput.files[0] && imageInput.files[0];
+        processBtn.disabled = !hasFiles;
+      }
+
+      pdfInput.addEventListener("change", () => {
+        updateButtonState();
+        if (positionModeSelect.value === "manual") {
+          loadPdfPreview();
+        }
+      });
+      imageInput.addEventListener("change", updateButtonState);
+
+      pageInput.addEventListener("change", () => {
+        if (positionModeSelect.value === "manual") {
+          renderPdfPage();
+        }
+      });
+
+      // Initial state
+      updateButtonState();
+    </script>
+  </body>
+</html>
