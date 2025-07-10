@@ -5,3 +5,5 @@ This simple application takes a character sheet and inserts an image into it. It
 Note: Form-fillable PDFs may not work as expected, as the image may appear under a fillable form field. Consider flattening the PDF first (for instance, using the "Print to PDF" option in your browser) to ensure the image is added correctly.
 
 It knows about a few of the standard character sheet formats. With a bit of experimentation you should be able to get it into the right location of any PDF.
+
+![Example sheet with character positioned.](example.png)
